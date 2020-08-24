@@ -20,15 +20,15 @@ main() {
     enable_trapping
     # Create progress bar
     setup_scroll_area
-    for i in {1..99}
+    for i in {1..10}
     do
-        if [ $i = 50 ]; then
+        if [ $i = 4 ]; then
             echo "waiting for user input"
-            block_progress_bar $i
+            block_progress_bar $(($i * 10))
             read -p "User input: "
         else
+            draw_progress_bar $(($i * 10))
             generate_some_output_and_sleep
-            draw_progress_bar $i
         fi
     done
     destroy_scroll_area

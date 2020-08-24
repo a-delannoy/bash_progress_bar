@@ -26,6 +26,8 @@ PROGRESS_BLOCKED="false"
 TRAPPING_ENABLED="false"
 TRAP_SET="false"
 
+CURRENT_NR_LINES=0
+
 setup_scroll_area() {
     # If trapping is enabled, we will want to activate it whenever we setup the scroll area and remove it when we break the scroll area
     if [ "$TRAPPING_ENABLED" = "true" ]; then
@@ -33,9 +35,11 @@ setup_scroll_area() {
     fi
 
     lines=$(tput lines)
+    CURRENT_NR_LINES=$lines
     let lines=$lines-1
+    # let lines=$lines-2 # TEST
     # Scroll down a bit to avoid visual glitch when the screen area shrinks by one row
-    echo -en "\n"
+    echo -en "\n\n"
 
     # Save cursor
     echo -en "$CODE_SAVE_CURSOR"
@@ -74,17 +78,22 @@ destroy_scroll_area() {
 }
 
 draw_progress_bar() {
+    # Hide cursor
+    echo -en "\e[?25l"
     percentage=$1
     lines=$(tput lines)
-    let lines=$lines
+    # let lines=$lines
+
+    # Check if the window has been resized. If so, reset the scroll area
+    if [ "$lines" -ne "$CURRENT_NR_LINES" ]; then
+        setup_scroll_area
+    fi
+
     # Save cursor
     echo -en "$CODE_SAVE_CURSOR"
 
     # Move cursor position to last row
     echo -en "\033[${lines};0f"
-
-    # Clear progress bar
-    tput el
 
     # Draw progress bar
     PROGRESS_BLOCKED="false"
@@ -92,6 +101,8 @@ draw_progress_bar() {
 
     # Restore cursor position
     echo -en "$CODE_RESTORE_CURSOR"
+    # Show cursor
+    echo -en "\e[?25h"
 }
 
 block_progress_bar() {
@@ -103,9 +114,6 @@ block_progress_bar() {
 
     # Move cursor position to last row
     echo -en "\033[${lines};0f"
-
-    # Clear progress bar
-    tput el
 
     # Draw progress bar
     PROGRESS_BLOCKED="true"
@@ -144,10 +152,25 @@ print_bar_text() {
     # Prepare progress bar
     let complete_size=($bar_size*$percentage)/100
     let remainder_size=$bar_size-$complete_size
-    progress_bar=$(echo -ne "["; echo -en "${color}"; printf_new "#" $complete_size; echo -en "${RESTORE_FG}${RESTORE_BG}"; printf_new "." $remainder_size; echo -ne "]");
-
+    if [ $percentage -lt 100 ]
+    then
+        progress_bar=$(echo -ne "["; \
+            echo -en "${color}"; \
+            printf_new "=" $complete_size; \
+            echo -en ">"; \
+            echo -en "${RESTORE_FG}${RESTORE_BG}"; \
+            printf_new "." $(($remainder_size - 1)); \
+            echo -ne "]");
+    else
+        progress_bar=$(echo -ne "["; \
+            echo -en "${color}"; \
+            printf_new "=" $complete_size; \
+            echo -en "${RESTORE_FG}${RESTORE_BG}"; \
+            echo -ne "]");
+    fi
     # Print progress bar
-    echo -ne " Progress ${percentage}% ${progress_bar}"
+    # echo -ne "$(printf " Progress %3s%% %s" "${percentage}" "${progress_bar}")"
+    printf " Progress %3s%% %s" "${percentage}" "${progress_bar}"
 }
 
 enable_trapping() {
@@ -168,8 +191,11 @@ cleanup_on_interrupt() {
 printf_new() {
     str=$1
     num=$2
-    v=$(printf "%-${num}s" "$str")
-    echo -ne "${v// /$str}"
+    if [ $num -ne 0 ]
+    then
+        v=$(printf "%-${num}s" "$str")
+        echo -ne "${v// /$str}"
+    fi
 }
 
 
